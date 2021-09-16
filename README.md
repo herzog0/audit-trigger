@@ -14,8 +14,17 @@ argument passed. However, the new feature will NOT exclude the provided
 columns from the "row_data" field in the audit table. This way, if you
 care about the changes in field B but ONLY when the field A updates, you
 should just ignore the column B, not exclude it.
+
+### Added "watched columns" feature
+With this feature you can watch for changes in specific columns.
+For example, if you want to watch an order status column, you must pass
+'{order_status}::text[]' as an argument to the trigger creation call.
+Excluded columns takes precedence over ignored columns which takes
+precedence over watched columns.
+
+
 ### Complete usage
-`SELECT audit.audit_table('public.my_table', 'true', 'true', '{}'::text[], '{a_column}'::text[]);`  
+`SELECT audit.audit_table('public.my_table', 'true', 'true', '{}'::text[], '{a_column}'::text[], '{status_column}'::text[]);`  
 Note the argument `'{}'::text[]` as the "excluded_cols" array parameter. Although we don't want to exclude any columns,
 we must pass an empty array as the argument of it, just because we are using the "ignored_cols" parameter.   
 If you don't want to exclude OR ignore any columns, then you may omit both arguments.
