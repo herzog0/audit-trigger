@@ -89,6 +89,12 @@ DECLARE
     h_old hstore;
     h_new hstore;
     excluded_cols text[] = ARRAY[]::text[];
+
+    -- Ignored_cols may contain an array of columns
+    -- whose updates should be ignored. But they
+    -- won't be excluded from the row_data field
+    -- in case of an UPDATE.
+    ignored_cols text[] = ARRAY[]::text[];
 BEGIN
     IF TG_WHEN <> 'AFTER' THEN
         RAISE EXCEPTION 'audit.if_modified_func() may only run as an AFTER trigger';
@@ -120,10 +126,14 @@ BEGIN
     IF TG_ARGV[1] IS NOT NULL THEN
         excluded_cols = TG_ARGV[1]::text[];
     END IF;
+
+    IF TG_ARGV[2] IS NOT NULL THEN
+        ignored_cols = TG_ARGV[2]::text[];
+    END IF;
     
     IF (TG_OP = 'UPDATE' AND TG_LEVEL = 'ROW') THEN
         audit_row.row_data = hstore(OLD.*) - excluded_cols;
-        audit_row.changed_fields =  (hstore(NEW.*) - audit_row.row_data) - excluded_cols;
+        audit_row.changed_fields =  (hstore(NEW.*) - audit_row.row_data) - excluded_cols - ignored_cols;
         IF audit_row.changed_fields = hstore('') THEN
             -- All changed fields are ignored. Skip this update.
             RETURN NULL;
@@ -136,7 +146,6 @@ BEGIN
         audit_row.statement_only = 't';
     ELSE
         RAISE EXCEPTION '[audit.if_modified_func] - Trigger func added as trigger for unhandled case: %, %',TG_OP, TG_LEVEL;
-        RETURN NULL;
     END IF;
     INSERT INTO audit.logged_actions VALUES (audit_row.*);
     RETURN NULL;
@@ -154,15 +163,30 @@ Optional parameters to trigger in CREATE TRIGGER call:
 
 param 0: boolean, whether to log the query text. Default 't'.
 
-param 1: text[], columns to ignore in updates. Default [].
+param 1: text[], columns to exclude in updates. Default [].
 
-         Updates to ignored cols are omitted from changed_fields.
+         (This statement below is the only difference between param 1
+         and param 2)
+         Updates to excluded cols are omitted from changed_fields.
+
+         Updates with only excluded cols changed are not inserted
+         into the audit log.
+
+         Almost all the processing work is still done for updates
+         that are excluded. If you need to save the load, you need to use
+         WHEN clause on the trigger instead.
+
+         No warning or error is issued if excluded_cols contains columns
+         that do not exist in the target table. This lets you specify
+         a standard set of excluded columns.
+
+param 2: text[], columns to ignore in updates. Default [].
 
          Updates with only ignored cols changed are not inserted
          into the audit log.
 
          Almost all the processing work is still done for updates
-         that ignored. If you need to save the load, you need to use
+         that are ignored. If you need to save the load, you need to use
          WHEN clause on the trigger instead.
 
          No warning or error is issued if ignored_cols contains columns
@@ -180,23 +204,29 @@ $body$;
 
 
 
-CREATE OR REPLACE FUNCTION audit.audit_table(target_table regclass, audit_rows boolean, audit_query_text boolean, ignored_cols text[]) RETURNS void AS $body$
+CREATE OR REPLACE FUNCTION audit.audit_table(target_table regclass, audit_rows boolean, audit_query_text boolean, excluded_cols text[], ignored_cols text[]) RETURNS void AS $body$
 DECLARE
   stm_targets text = 'INSERT OR UPDATE OR DELETE OR TRUNCATE';
   _q_txt text;
+  _excluded_cols_snip text = '';
   _ignored_cols_snip text = '';
 BEGIN
     EXECUTE 'DROP TRIGGER IF EXISTS audit_trigger_row ON ' || target_table;
     EXECUTE 'DROP TRIGGER IF EXISTS audit_trigger_stm ON ' || target_table;
 
     IF audit_rows THEN
+        IF array_length(excluded_cols,1) > 0 THEN
+            _excluded_cols_snip = ', ' || quote_literal(excluded_cols);
+        END IF;
+
         IF array_length(ignored_cols,1) > 0 THEN
             _ignored_cols_snip = ', ' || quote_literal(ignored_cols);
         END IF;
+
         _q_txt = 'CREATE TRIGGER audit_trigger_row AFTER INSERT OR UPDATE OR DELETE ON ' || 
                  target_table || 
                  ' FOR EACH ROW EXECUTE PROCEDURE audit.if_modified_func(' ||
-                 quote_literal(audit_query_text) || _ignored_cols_snip || ');';
+                 quote_literal(audit_query_text) || _excluded_cols_snip || _ignored_cols_snip || ');';
         RAISE NOTICE '%',_q_txt;
         EXECUTE _q_txt;
         stm_targets = 'TRUNCATE';
@@ -214,19 +244,20 @@ END;
 $body$
 language 'plpgsql';
 
-COMMENT ON FUNCTION audit.audit_table(regclass, boolean, boolean, text[]) IS $body$
+COMMENT ON FUNCTION audit.audit_table(regclass, boolean, boolean, text[], text[]) IS $body$
 Add auditing support to a table.
 
 Arguments:
    target_table:     Table name, schema qualified if not on search_path
    audit_rows:       Record each row change, or only audit at a statement level
    audit_query_text: Record the text of the client query that triggered the audit event?
-   ignored_cols:     Columns to exclude from update diffs, ignore updates that change only ignored cols.
+   excluded_cols:     Columns to exclude from update diffs, ignore updates that change only excluded cols.
+   ignored_cols:     Ignore updates that change only ignored cols.
 $body$;
 
 -- Pg doesn't allow variadic calls with 0 params, so provide a wrapper
 CREATE OR REPLACE FUNCTION audit.audit_table(target_table regclass, audit_rows boolean, audit_query_text boolean) RETURNS void AS $body$
-SELECT audit.audit_table($1, $2, $3, ARRAY[]::text[]);
+SELECT audit.audit_table($1, $2, $3, ARRAY[]::text[], ARRAY[]::text[]);
 $body$ LANGUAGE SQL;
 
 -- And provide a convenience call wrapper for the simplest case
