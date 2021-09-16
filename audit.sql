@@ -123,11 +123,11 @@ BEGIN
         audit_row.client_query = NULL;
     END IF;
 
-    IF TG_ARGV[1] IS NOT NULL THEN
+    IF TG_ARGV[1] IS NOT NULL AND TG_ARGV[1] <> 'NULL' THEN
         excluded_cols = TG_ARGV[1]::text[];
     END IF;
 
-    IF TG_ARGV[2] IS NOT NULL THEN
+    IF TG_ARGV[2] IS NOT NULL AND TG_ARGV[2] <> 'NULL' THEN
         ignored_cols = TG_ARGV[2]::text[];
     END IF;
     
@@ -217,10 +217,14 @@ BEGIN
     IF audit_rows THEN
         IF array_length(excluded_cols,1) > 0 THEN
             _excluded_cols_snip = ', ' || quote_literal(excluded_cols);
+        ELSE
+            _excluded_cols_snip = ', "NULL"';
         END IF;
 
         IF array_length(ignored_cols,1) > 0 THEN
             _ignored_cols_snip = ', ' || quote_literal(ignored_cols);
+        ELSE
+            _ignored_cols_snip = ', "NULL"';
         END IF;
 
         _q_txt = 'CREATE TRIGGER audit_trigger_row AFTER INSERT OR UPDATE OR DELETE ON ' || 
