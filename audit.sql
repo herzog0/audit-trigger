@@ -51,7 +51,10 @@ CREATE TABLE audit.logged_actions
     action            TEXT                     NOT NULL CHECK (action IN ('I', 'D', 'U', 'T')),
     row_data          jsonb,
     changed_fields    jsonb,
-    statement_only    boolean                  not null
+    statement_only    boolean                  not null,
+    processed         boolean                  not null default false,
+    attempts          integer                  not null default 0,
+    processed_at      TIMESTAMP(3)
 );
 REVOKE ALL ON audit.logged_actions
     FROM public;
@@ -73,6 +76,9 @@ COMMENT ON COLUMN audit.logged_actions.action IS 'Action type; I = insert, D = d
 COMMENT ON COLUMN audit.logged_actions.row_data IS 'Record value. Null for statement-level trigger. For INSERT this is the new tuple. For DELETE and UPDATE it is the old tuple.';
 COMMENT ON COLUMN audit.logged_actions.changed_fields IS 'New values of fields changed by UPDATE. Null except for row-level UPDATE events.';
 COMMENT ON COLUMN audit.logged_actions.statement_only IS '''t'' if audit event is from an FOR EACH STATEMENT trigger, ''f'' for FOR EACH ROW';
+COMMENT ON COLUMN audit.logged_actions.processed IS '''t'' if event listener has collected and processed the row successfully, ''f'' otherwise';
+COMMENT ON COLUMN audit.logged_actions.attempts IS 'The amount of attempts to process the row';
+COMMENT ON COLUMN audit.logged_actions.processed_at IS 'The date when the event was processed';
 CREATE INDEX logged_actions_relid_idx ON audit.logged_actions (relid);
 CREATE INDEX logged_actions_action_tstamp_tx_stm_idx ON audit.logged_actions (action_tstamp_stm);
 CREATE INDEX logged_actions_action_idx ON audit.logged_actions (action);
@@ -121,7 +127,10 @@ BEGIN
         NULL,
         NULL,
         -- row_data, changed_fields
-        'f' -- statement_only,
+        'f', -- statement_only,
+        'f', -- processed
+        0, -- attempts
+        null -- processed_at
         );
     IF NOT TG_ARGV[0]::boolean IS DISTINCT FROM 'f'::boolean THEN
         audit_row.client_query = NULL;
@@ -303,4 +312,3 @@ ORDER BY schema,
 COMMENT ON VIEW audit.tableslist IS $body$ View showing all tables with auditing
 set up.Ordered by schema,
     then table.$body$;
-
