@@ -32,10 +32,7 @@ CREATE TABLE audit.logged_actions
     action            TEXT                     NOT NULL CHECK (action IN ('I', 'D', 'U', 'T')),
     row_data          jsonb,
     changed_fields    jsonb,
-    statement_only    boolean                  not null,
-    processed         boolean                  not null default false,
-    attempts          integer                  not null default 0,
-    processed_at      TIMESTAMP(3)
+    statement_only    boolean                  not null
 );
 REVOKE ALL ON audit.logged_actions
     FROM public;

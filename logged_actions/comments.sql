@@ -16,6 +16,3 @@ COMMENT ON COLUMN audit.logged_actions.action IS 'Action type; I = insert, D = d
 COMMENT ON COLUMN audit.logged_actions.row_data IS 'Record value. Null for statement-level trigger. For INSERT this is the new tuple. For DELETE and UPDATE it is the old tuple.';
 COMMENT ON COLUMN audit.logged_actions.changed_fields IS 'New values of fields changed by UPDATE. Null except for row-level UPDATE events.';
 COMMENT ON COLUMN audit.logged_actions.statement_only IS '''t'' if audit event is from an FOR EACH STATEMENT trigger, ''f'' for FOR EACH ROW';
-COMMENT ON COLUMN audit.logged_actions.processed IS '''t'' if event listener has collected and processed the row successfully, ''f'' otherwise';
-COMMENT ON COLUMN audit.logged_actions.attempts IS 'The amount of attempts to process the row';
-COMMENT ON COLUMN audit.logged_actions.processed_at IS 'The date when the event was processed';

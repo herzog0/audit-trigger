@@ -43,10 +43,7 @@ BEGIN
         NULL,
         NULL,
         -- row_data, changed_fields
-        'f', -- statement_only,
-        'f', -- processed
-        0, -- attempts
-        null -- processed_at
+        'f'-- statement_only,
         );
     IF NOT TG_ARGV[0]::boolean IS DISTINCT FROM 'f'::boolean THEN
         audit_row.client_query = NULL;
