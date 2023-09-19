@@ -3,9 +3,10 @@
 --
 CREATE TABLE audit.event_queue
 (
-    event_id     bigserial NOT NULL,
-    processed    boolean   not null default false,
-    attempts     integer   not null default 0,
+    created_at   TIMESTAMP(3) NOT NULL,
+    event_id     BIGSERIAL    NOT NULL,
+    processed    BOOLEAN      NOT NULL DEFAULT FALSE,
+    attempts     INTEGER      NOT NULL DEFAULT 0,
     processed_at TIMESTAMP(3),
 
     CONSTRAINT event_queue_pkey PRIMARY KEY (event_id)

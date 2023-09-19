@@ -8,6 +8,7 @@ BEGIN
     END IF;
 
     event_row = ROW (
+        NOW(),
         NEW.event_id,
         'f', -- processed
         0, -- attempts
