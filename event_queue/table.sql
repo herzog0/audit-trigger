@@ -7,6 +7,7 @@ CREATE TABLE audit.event_queue
     event_id     BIGSERIAL    NOT NULL,
     processed    BOOLEAN      NOT NULL DEFAULT FALSE,
     attempts     INTEGER      NOT NULL DEFAULT 0,
+    retry_after  TIMESTAMP(3),
     processed_at TIMESTAMP(3),
 
     CONSTRAINT event_queue_pkey PRIMARY KEY (event_id)

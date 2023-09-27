@@ -89,12 +89,8 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF (audit_row.changed_fields is null) THEN
-        RETURN NULL;
-    ELSE
-        INSERT INTO audit.logged_actions
-        VALUES (audit_row.*);
-    END IF;
+    INSERT INTO audit.logged_actions
+    VALUES (audit_row.*);
 
     RETURN NULL;
 END;
